@@ -2,7 +2,7 @@
 --  Options  --
 ---------------
 
-options.timeout = 30
+options.timeout = 59
 options.subscribe = true
 options.create = false
 
@@ -11,8 +11,13 @@ options.create = false
 account_name  = 'cern' -- TODO: Fetch from config file base name
 
 local lyaml = require "lyaml"
-config_file = string.format('%s/.imapfilter/config.yaml', os.getenv('HOME'))
-file, err = io.open('config.yaml','r')
+local basexx = require "basexx"
+local os = require "os"
+
+-- TODO: os.getenv doesn't work in embedded lua from imapfilter
+config_file = string.format('/home/spike/.imapfilter/config.yaml', os.getenv('HOME'))
+
+file, err = io.open(config_file,'r')
 if err then
   print(string.format("Error reading %s:: %s", config_file, err))
   os.exit(-1)
@@ -24,13 +29,12 @@ config = lyaml.load(config_str)
 
 imap_server = config[account_name]['server']
 user = config[account_name]['username']
-pass = config[account_name]['password']
+pass = basexx.from_base64(config[account_name]['password'])
 
-print(imap_server, user, pass)
 imaps = IMAP {
     server = imap_server,
     username = user,
-    password = string.format("%s", pass),
+    password = pass,
     ssl = 'tls1'
 }
 
@@ -100,15 +104,11 @@ function process(recent)
   gni:move_messages(imaps['GNI'])
 
 --  -- SNOW
---  addr = 'noreply-service-desk@cern.ch'
---  addr2 = 'service-desk@cern.ch'
---  snow = recent:contain_from(addr)
---    + recent:contain_from(addr2)
---    + recent:contain_cc(addr)
---    + recent:contain_cc(addr2)
---    + recent:contain_to(addr)
---    + recent:contain_to(addr2)
---  snow:move_messages(imaps['CERN Service Desk'])
+  addr = 'noreply-service-desk@cern.ch'
+  addr2 = 'service-desk@cern.ch'
+  snow = recent:contain_from(addr)
+    + recent:contain_from(addr2)
+  snow:move_messages(imaps['CERN Service Desk'])
 
   --Account Management
   addr = 'account-management.service@cern.ch'
@@ -121,6 +121,7 @@ function process(recent)
   -- gitlab = recent:match_field('X-GitLab-Project','(\\d)*')
   --   + recent:match_field('X-GitLab-Project-Path','(\\d)*')
   -- gitlab:move_messages(imaps['Gitlab'])
+  -- gitlab:add_flags({'\\Flagged'})
 
   --Resource Portal
   resource_portal = recent:match_subject('Request to create Oracle account')
@@ -158,14 +159,19 @@ function process(recent)
   ais_jira:delete_messages()
 
   -- TODELETE
-  todelete = recent:match_subject('RMAN ERROR')
-    + recent:match_subject('Anacron job')
-    + recent:match_subject('Cron <')
+  todelete = recent:match_subject('vegas-cli')
+    + recent:match_subject('^RMAN ERROR')
     + recent:match_subject('GGUS-Ticket-ID')
+    + recent:match_subject('^EM Event:')
+  todelete:delete_messages()
+  
+  todelete = recent:match_subject('Anacron job')
+    + recent:match_subject('Cron <')
     + recent:match_subject('SUCCESS: Volume')
     + recent:match_subject('RECOVERY ERROR')
-    + recent:match_subject('^EM Event:')
     + recent:match_subject('ACCOUNT MANAGEMENT')
+    + recent:match_subject('ROGER:')
+    + recent:match_from('oracle@mail.cern.ch')
   todelete:move_messages(imaps['TODELETE'])
 
 end

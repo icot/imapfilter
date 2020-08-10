@@ -1,0 +1,10 @@
+[Unit]
+Description=Imapfilter Service
+
+[Service]
+Restart=on-failure
+RestartSec=10
+ExecStart=/usr/bin/imapfilter -c /home/spike/.imapfilter/config2.lua -v
+
+[Install]
+WantedBy=default.target
